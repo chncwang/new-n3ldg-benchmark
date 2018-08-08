@@ -5,7 +5,7 @@
 #include <unordered_set>
 #include "Argument_helper.h"
 #include "Reader.h"
-#include "DomainLoss.h"
+#include "profiler.h"
 #if USE_GPU
 #include "N3LDG_cuda.h"
 #endif
@@ -155,9 +155,11 @@ void Classifier::train(const string &trainFile, const string &devFile,
     int devNum = devExamples.size(), testNum = testExamples.size();
     int non_exceeds_time = 0;
     auto time_start = std::chrono::high_resolution_clock::now();
+
     n3ldg_cuda::Profiler &profiler = n3ldg_cuda::Profiler::Ins();
     profiler.SetEnabled(true);
-    profiler.BeginEvent("total");
+    profiler.BeginEvent("classifier train");
+
     for (int iter = 0; iter < 1; ++iter) {
         std::cout << "##### Iteration " << iter << std::endl;
         std::vector<int> indexes;
@@ -166,6 +168,7 @@ void Classifier::train(const string &trainFile, const string &devFile,
         //}
         //std::random_shuffle(indexes.begin(), indexes.end());
         int batchBlock = trainExamples.size() / m_options.batchSize;
+        batchBlock /= 10;
         if (trainExamples.size() % m_options.batchSize != 0)
             batchBlock++;
         Metric metric;
@@ -186,11 +189,9 @@ void Classifier::train(const string &trainFile, const string &devFile,
             metric.overall_label_count += m_driver._metric.overall_label_count;
             metric.correct_label_count += m_driver._metric.correct_label_count;
 
-            m_driver.checkgrad(subExamples, updateIter);
+            //m_driver.checkgrad(subExamples, updateIter);
 
-            profiler.BeginEvent("model update");
             m_driver.updateModel();
-            profiler.EndCudaEvent();
 
             if (updateIter % 100 == 0) {
             std::cout << "current: " << updateIter + 1 << ", total block: "
@@ -264,9 +265,9 @@ int main(int argc, char *argv[]) {
         the_classifier.train(trainFile, devFile, testFile, modelFile, optionFile);
     } else {
     }
+    n3ldg_cuda::Profiler::Ins().Print();
 #if USE_GPU
     n3ldg_cuda::EndCuda();
 #else
-    n3ldg_cuda::Profiler::Ins().Print();
 #endif
 }

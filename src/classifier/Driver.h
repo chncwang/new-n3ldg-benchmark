@@ -11,7 +11,6 @@
 #include <iostream>
 #include "ComputionGraph.h"
 #include "Category.h"
-#include "MySoftMaxLoss.h"
 #include "Targets.h"
 #include "profiler.h"
 
@@ -66,9 +65,8 @@ public:
 
     inline dtype train(const vector<Example> &examples, int iter) {
         n3ldg_cuda::Profiler &profiler = n3ldg_cuda::Profiler::Ins();
-        profiler.SetEnabled(true);
+        profiler.BeginEvent("train");
         resetEval();
-        profiler.BeginEvent("construct graph");
         _cg.clearValue();
         int example_num = examples.size();
         if (example_num > _builders.size()) {
@@ -85,12 +83,8 @@ public:
             //forward
             _builders.at(count).forward(example.m_feature, true);
         }
-        profiler.EndCudaEvent();
 
-        profiler.BeginEvent("batch");
         _cg.compute();
-        profiler.EndCudaEvent();
-        profiler.BeginEvent("backward");
 #if USE_GPU
         std::vector<Node*> outputs;
         outputs.reserve(example_num);
@@ -125,11 +119,11 @@ public:
         for (int count = 0; count < example_num; count++) {
             const Example &example = examples.at(count);
             cost += _modelparams.loss.loss(&_builders.at(count)._neural_output,
-                example.m_category, _metric, example_num);
+                ToVector(example.m_category), _metric, example_num);
         }
 #endif
         _cg.backward();
-        profiler.EndCudaEvent();
+        profiler.EndEvent();
         return cost;
     }
 
@@ -139,7 +133,7 @@ public:
         _cg.compute();
 
         int intResult;
-        _modelparams.loss.predict(&_builders.at(0)._neural_output, intResult, excluded_class );
+        _modelparams.loss.predict(&_builders.at(0)._neural_output, intResult);
         result = static_cast<Category>(intResult);
     }
 
@@ -149,14 +143,17 @@ public:
         _cg.compute();
 
         dtype cost = _modelparams.loss.cost(&_builders.at(0)._neural_output,
-            example.m_category, 1);
+            ToVector(example.m_category), 1);
 
         return cost;
     }
 
 
     void updateModel() {
+        n3ldg_cuda::Profiler &profiler = n3ldg_cuda::Profiler::Ins();
+        profiler.BeginEvent("update model");
         _ada.updateAdam(10);
+        profiler.EndEvent();
     }
 
     void checkgrad(const vector<Example> &examples, int iter) {

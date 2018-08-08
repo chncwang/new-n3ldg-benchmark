@@ -2,7 +2,6 @@
 #define SRC_ModelParams_H_
 
 #include "HyperParams.h"
-#include "MySoftMaxLoss.h"
 #include "LSTM1.h"
 #include "BiOP.h"
 #include <array>
@@ -17,7 +16,7 @@ public:
     LSTM1Params right_to_left_lstm;
 
     UniParams olayer_linear;
-    MySoftMaxLoss loss;
+    SoftMaxLoss loss;
 
     bool initial(HyperParams& opts){
         if (words.nVSize <= 0){
